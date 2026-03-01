@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Matching Result</title>
+</head>
+<body>
+
+<h2>Matching Summary</h2>
+
+<p>Matched: {{ matched }}</p>
+<p>Not in 2B: {{ not_in_2b }}</p>
+<p>Not in Books: {{ not_in_books }}</p>
+
+<h3>Not in 2B Details</h3>
+<table border="1">
+<tr>
+    <th>GSTIN</th>
+    <th>Invoice No</th>
+    <th>Taxable Value</th>
+</tr>
+{% for row in not_in_2b_data %}
+<tr>
+    <td>{{ row['GSTIN'] }}</td>
+    <td>{{ row['Invoice No'] }}</td>
+    <td>{{ row['Taxable Value'] }}</td>
+</tr>
+{% endfor %}
+</table>
+
+<h3>Not in Books Details</h3>
+<table border="1">
+<tr>
+    <th>GSTIN</th>
+    <th>Invoice No</th>
+    <th>Taxable Value</th>
+</tr>
+{% for row in not_in_books_data %}
+<tr>
+    <td>{{ row['GSTIN'] }}</td>
+    <td>{{ row['Invoice No'] }}</td>
+    <td>{{ row['Taxable Value'] }}</td>
+</tr>
+{% endfor %}
+</table>
+
+<br>
+<a href="/">Back</a>
+
+</body>
+</html>
