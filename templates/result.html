@@ -1,50 +1,120 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Matching Result</title>
+    <title>GST Recon Report</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th, td { padding: 8px; border: 1px solid #ccc; text-align: left; }
+        th { background-color: #2c3e50; color: white; }
+        h2 { margin-top: 40px; }
+        .summary { background: #f4f6f7; padding: 15px; margin-bottom: 20px; }
+    </style>
 </head>
 <body>
 
-<h2>Matching Summary</h2>
+<h1>GST Reconciliation Report</h1>
 
-<p>Matched: {{ matched }}</p>
-<p>Not in 2B: {{ not_in_2b }}</p>
-<p>Not in Books: {{ not_in_books }}</p>
+<div class="summary">
+    <p><strong>Total Books ITC:</strong> {{ total_books_itc }}</p>
+    <p><strong>Total Portal ITC:</strong> {{ total_portal_itc }}</p>
+    <p><strong>ITC Difference:</strong> {{ diff }}</p>
+</div>
 
-<h3>Not in 2B Details</h3>
-<table border="1">
+<h2>Not in 2B</h2>
+<table>
 <tr>
-    <th>GSTIN</th>
-    <th>Invoice No</th>
-    <th>Taxable Value</th>
+    <th>GST</th>
+    <th>Party</th>
+    <th>Invoice</th>
+    <th>Amount</th>
 </tr>
-{% for row in not_in_2b_data %}
+{% for row in not_in_2b %}
 <tr>
-    <td>{{ row['GSTIN'] }}</td>
-    <td>{{ row['Invoice No'] }}</td>
-    <td>{{ row['Taxable Value'] }}</td>
+    <td>{{ row.gst }}</td>
+    <td>{{ row.party }}</td>
+    <td>{{ row.invoice }}</td>
+    <td>{{ row.amount }}</td>
 </tr>
 {% endfor %}
 </table>
 
-<h3>Not in Books Details</h3>
-<table border="1">
+
+<h2>Not in Books</h2>
+<table>
 <tr>
-    <th>GSTIN</th>
-    <th>Invoice No</th>
-    <th>Taxable Value</th>
+    <th>GST</th>
+    <th>Party</th>
+    <th>Invoice</th>
+    <th>Amount</th>
 </tr>
-{% for row in not_in_books_data %}
+{% for row in not_in_books %}
 <tr>
-    <td>{{ row['GSTIN'] }}</td>
-    <td>{{ row['Invoice No'] }}</td>
-    <td>{{ row['Taxable Value'] }}</td>
+    <td>{{ row.gst }}</td>
+    <td>{{ row.party }}</td>
+    <td>{{ row.invoice }}</td>
+    <td>{{ row.amount }}</td>
 </tr>
 {% endfor %}
 </table>
+
+
+<h2>Mismatch (ITC Difference)</h2>
+<table>
+<tr>
+    <th>GST</th>
+    <th>Party</th>
+    <th>Invoice</th>
+    <th>Books ITC</th>
+    <th>Portal ITC</th>
+    <th>Difference</th>
+</tr>
+{% for row in mismatch %}
+<tr>
+    <td>{{ row.gst }}</td>
+    <td>{{ row.party }}</td>
+    <td>{{ row.invoice }}</td>
+    <td>{{ row.books_itc }}</td>
+    <td>{{ row.portal_itc }}</td>
+    <td>{{ row.difference }}</td>
+</tr>
+{% endfor %}
+</table>
+
+
+<h2>Reverse Charge Details</h2>
+<table>
+<tr>
+    <th>GST</th>
+    <th>Party</th>
+    <th>Invoice</th>
+    <th>IGST</th>
+    <th>CGST</th>
+    <th>SGST</th>
+    <th>Total RC</th>
+</tr>
+{% for row in rc_data %}
+<tr>
+    <td>{{ row.gst }}</td>
+    <td>{{ row.party }}</td>
+    <td>{{ row.invoice }}</td>
+    <td>{{ row.igst }}</td>
+    <td>{{ row.cgst }}</td>
+    <td>{{ row.sgst }}</td>
+    <td>{{ row.total }}</td>
+</tr>
+{% endfor %}
+</table>
+
+<div class="summary">
+    <p><strong>Total RC IGST:</strong> {{ total_rc_igst }}</p>
+    <p><strong>Total RC CGST:</strong> {{ total_rc_cgst }}</p>
+    <p><strong>Total RC SGST:</strong> {{ total_rc_sgst }}</p>
+    <p><strong>Total RC Payable:</strong> {{ total_rc }}</p>
+</div>
 
 <br>
-<a href="/">Back</a>
+<a href="/">⬅ Back</a>
 
 </body>
 </html>
