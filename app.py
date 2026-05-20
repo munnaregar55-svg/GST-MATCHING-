@@ -1,206 +1,187 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_file
 import pandas as pd
+import io
 
 app = Flask(__name__)
 
-# ===================== UTILITIES =====================
+# =========================
+# READ EXCEL FILE
+# =========================
 
 def read_file(file):
-    try:
-        if file.filename.endswith(".csv"):
-            return pd.read_csv(file)
+    return pd.read_excel(file)
 
-        df = pd.read_excel(file, header=None)
-
-        for i in range(10):
-            row = df.iloc[i].astype(str).str.lower()
-            if any("gst" in str(x) for x in row):
-                df.columns = df.iloc[i]
-                df = df[i+1:]
-                break
-
-        return df.reset_index(drop=True)
-
-    except Exception as e:
-        print("Read Error:", e)
-        return None
-
-
-def clean(df):
-    df.columns = df.columns.astype(str)
-    df.columns = df.columns.str.strip().str.lower()
-    return df
-
-
-def safe_float(x):
-    try:
-        return float(x)
-    except:
-        return 0.0
-
-
-def find_col(df, keywords):
-    for col in df.columns:
-        for key in keywords:
-            if key in col:
-                return col
-    return None
-
-
-# ===================== ROUTES =====================
+# =========================
+# HOME PAGE
+# =========================
 
 @app.route("/")
-def index():
+def home():
     return render_template("index.html")
 
+# =========================
+# GST MATCHING
+# =========================
 
 @app.route("/match", methods=["POST"])
-def match():
-    try:
-        purchase = read_file(request.files["purchase"])
-        portal = read_file(request.files["gstr2b"])
+def match_files():
 
-        if purchase is None or portal is None:
-            return "Error reading file."
+    file1 = request.files["file1"]
+    file2 = request.files["file2"]
 
-        purchase = clean(purchase)
-        portal = clean(portal)
+    df1 = read_file(file1)
+    df2 = read_file(file2)
 
-        # -------- BOOKS COLUMN MAP --------
-        gst_p = find_col(purchase, ["gst"])
-        inv_p = find_col(purchase, ["invoice", "bill", "doc"])
-        party_p = find_col(purchase, ["party", "supplier", "vendor", "name"])
-        amt_p = find_col(purchase, ["amount", "invoice value"])
-        igst_p = find_col(purchase, ["igst"])
-        cgst_p = find_col(purchase, ["cgst"])
-        sgst_p = find_col(purchase, ["sgst"])
-        rc_p = find_col(purchase, ["rc", "rcm", "reverse"])
+    # Remove extra spaces from headings
+    df1.columns = df1.columns.str.strip()
+    df2.columns = df2.columns.str.strip()
 
-        # -------- PORTAL COLUMN MAP --------
-        gst_b = find_col(portal, ["gst"])
-        inv_b = find_col(portal, ["invoice"])
-        party_b = find_col(portal, ["recipient", "supplier", "party", "name"])
-        amt_b = find_col(portal, ["invoice value", "amount"])
-        igst_b = find_col(portal, ["igst"])
-        cgst_b = find_col(portal, ["cgst"])
-        sgst_b = find_col(portal, ["sgst"])
+    # Required columns
+    required_columns = [
+        "GST No",
+        "Bill No",
+        "Net Amount",
+        "Taxable Amount",
+        "IGST",
+        "SGST",
+        "CGST"
+    ]
 
-        if not gst_p or not inv_p:
-            return "Books file missing GST or Invoice column."
+    # Check headings
+    for col in required_columns:
+        if col not in df1.columns:
+            return f"{col} not found in File 1"
 
-        if not gst_b or not inv_b:
-            return "Portal file missing GST or Invoice column."
+        if col not in df2.columns:
+            return f"{col} not found in File 2"
 
-        purchase["key"] = purchase[gst_p].astype(str) + purchase[inv_p].astype(str)
-        portal["key"] = portal[gst_b].astype(str) + portal[inv_b].astype(str)
+    # Optional columns
+    if "Party Name" not in df1.columns:
+        df1["Party Name"] = ""
 
-        mismatch = []
-        not_in_2b = []
-        not_in_books = []
-        rc_data = []
+    if "Party Name" not in df2.columns:
+        df2["Party Name"] = ""
 
-        total_books_itc = 0
-        total_portal_itc = 0
+    # Create match key
+    df1["match_key"] = (
+        df1["GST No"].astype(str).str.strip() +
+        "_" +
+        df1["Bill No"].astype(str).str.strip()
+    )
 
-        total_rc = 0
-        total_rc_igst = 0
-        total_rc_cgst = 0
-        total_rc_sgst = 0
+    df2["match_key"] = (
+        df2["GST No"].astype(str).str.strip() +
+        "_" +
+        df2["Bill No"].astype(str).str.strip()
+    )
 
-        # ================= MATCH LOOP =================
+    # Set index
+    df2_indexed = df2.set_index("match_key")
 
-        for _, row in purchase.iterrows():
+    mismatch_data = []
+    matched_data = []
 
-            key = row["key"]
+    # =========================
+    # MATCHING LOOP
+    # =========================
 
-            igst_val = safe_float(row.get(igst_p, 0))
-            cgst_val = safe_float(row.get(cgst_p, 0))
-            sgst_val = safe_float(row.get(sgst_p, 0))
+    for _, row1 in df1.iterrows():
 
-            books_itc = igst_val + cgst_val + sgst_val
-            total_books_itc += books_itc
+        key = row1["match_key"]
 
-            # ===== RC CHECK WITH BREAKUP =====
-            if rc_p:
-                rc_val = str(row.get(rc_p, "")).strip().lower()
-                if rc_val in ["yes", "y", "1", "true"]:
+        if key in df2_indexed.index:
 
-                    rc_total = igst_val + cgst_val + sgst_val
+            row2 = df2_indexed.loc[key]
 
-                    total_rc += rc_total
-                    total_rc_igst += igst_val
-                    total_rc_cgst += cgst_val
-                    total_rc_sgst += sgst_val
+            status_list = []
 
-                    rc_data.append({
-                        "gst": row.get(gst_p, ""),
-                        "party": row.get(party_p, ""),
-                        "invoice": row.get(inv_p, ""),
-                        "igst": round(igst_val, 2),
-                        "cgst": round(cgst_val, 2),
-                        "sgst": round(sgst_val, 2),
-                        "total": round(rc_total, 2)
-                    })
+            compare_columns = [
+                "Net Amount",
+                "Taxable Amount",
+                "IGST",
+                "SGST",
+                "CGST"
+            ]
 
-            # ===== MATCH CHECK =====
-            if key in portal["key"].values:
+            for col in compare_columns:
 
-                row2 = portal[portal["key"] == key].iloc[0]
+                val1 = float(row1[col]) if pd.notna(row1[col]) else 0
+                val2 = float(row2[col]) if pd.notna(row2[col]) else 0
 
-                portal_itc = (
-                    safe_float(row2.get(igst_b, 0)) +
-                    safe_float(row2.get(cgst_b, 0)) +
-                    safe_float(row2.get(sgst_b, 0))
-                )
+                diff = abs(val1 - val2)
 
-                total_portal_itc += portal_itc
+                # Ignore difference upto ₹1
+                if diff > 1:
+                    status_list.append(f"{col} Mismatch")
 
-                if round(books_itc, 2) != round(portal_itc, 2):
-                    mismatch.append({
-                        "gst": row.get(gst_p, ""),
-                        "party": row.get(party_p, ""),
-                        "invoice": row.get(inv_p, ""),
-                        "books_itc": round(books_itc, 2),
-                        "portal_itc": round(portal_itc, 2),
-                        "difference": round(books_itc - portal_itc, 2)
-                    })
+            # If mismatch found
+            if status_list:
+
+                mismatch_data.append({
+                    "GST No": row1["GST No"],
+                    "Party Name": row1["Party Name"],
+                    "Bill No": row1["Bill No"],
+
+                    "File1 Net Amount": row1["Net Amount"],
+                    "File2 Net Amount": row2["Net Amount"],
+
+                    "File1 Taxable Amount": row1["Taxable Amount"],
+                    "File2 Taxable Amount": row2["Taxable Amount"],
+
+                    "File1 IGST": row1["IGST"],
+                    "File2 IGST": row2["IGST"],
+
+                    "File1 SGST": row1["SGST"],
+                    "File2 SGST": row2["SGST"],
+
+                    "File1 CGST": row1["CGST"],
+                    "File2 CGST": row2["CGST"],
+
+                    "Status": ", ".join(status_list)
+                })
 
             else:
-                not_in_2b.append({
-                    "gst": row.get(gst_p, ""),
-                    "party": row.get(party_p, ""),
-                    "invoice": row.get(inv_p, ""),
-                    "amount": row.get(amt_p, 0)
+
+                matched_data.append({
+                    "GST No": row1["GST No"],
+                    "Party Name": row1["Party Name"],
+                    "Bill No": row1["Bill No"],
+                    "Status": "Exact Match"
                 })
 
-        # -------- NOT IN BOOKS --------
-        for _, row in portal.iterrows():
-            if row["key"] not in purchase["key"].values:
-                not_in_books.append({
-                    "gst": row.get(gst_b, ""),
-                    "party": row.get(party_b, ""),
-                    "invoice": row.get(inv_b, ""),
-                    "amount": row.get(amt_b, 0)
-                })
+        else:
 
-        return render_template(
-            "result.html",
-            mismatch=mismatch,
-            not_in_2b=not_in_2b,
-            not_in_books=not_in_books,
-            rc_data=rc_data,
-            total_books_itc=round(total_books_itc, 2),
-            total_portal_itc=round(total_portal_itc, 2),
-            diff=round(total_books_itc - total_portal_itc, 2),
-            total_rc=round(total_rc, 2),
-            total_rc_igst=round(total_rc_igst, 2),
-            total_rc_cgst=round(total_rc_cgst, 2),
-            total_rc_sgst=round(total_rc_sgst, 2)
-        )
+            mismatch_data.append({
+                "GST No": row1["GST No"],
+                "Party Name": row1["Party Name"],
+                "Bill No": row1["Bill No"],
+                "Status": "Missing Invoice"
+            })
 
-    except Exception as e:
-        return f"System Error: {str(e)}"
+    # =========================
+    # CREATE OUTPUT EXCEL
+    # =========================
 
+    mismatch_df = pd.DataFrame(mismatch_data)
+    matched_df = pd.DataFrame(matched_data)
+
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        mismatch_df.to_excel(writer, sheet_name="Mismatch Report", index=False)
+        matched_df.to_excel(writer, sheet_name="Matched Report", index=False)
+
+    output.seek(0)
+
+    return send_file(
+        output,
+        download_name="GST_Reconciliation_Report.xlsx",
+        as_attachment=True
+    )
+
+# =========================
+# RUN APP
+# =========================
 
 if __name__ == "__main__":
     app.run(debug=True)
