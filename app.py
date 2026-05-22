@@ -1,21 +1,18 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_templates, request, send_file
 import pandas as pd
 import os
-import shutil
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 RESULT_FOLDER = "results"
 
-# Fix uploads conflict
-if os.path.exists(UPLOAD_FOLDER):
+# Safe folders
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
-    if os.path.isfile(UPLOAD_FOLDER):
-        os.remove(UPLOAD_FOLDER)
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
+if not os.path.exists(RESULT_FOLDER):
+    os.makedirs(RESULT_FOLDER)
 
 
 def clean_columns(df):
