@@ -7,16 +7,24 @@ app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
 RESULT_FOLDER = "results"
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
+# Folder create safely
+if not os.path.isdir(UPLOAD_FOLDER):
+    os.mkdir(UPLOAD_FOLDER)
+
+if not os.path.isdir(RESULT_FOLDER):
+    os.mkdir(RESULT_FOLDER)
 
 
+# Column clean function
 def clean_columns(df):
+
     df.columns = (
-        df.columns.str.strip()
+        df.columns
+        .str.strip()
         .str.lower()
         .str.replace(" ", "", regex=False)
     )
+
     return df
 
 
@@ -28,22 +36,25 @@ def index():
         purchase_file = request.files["purchase"]
         gstr2b_file = request.files["gstr2b"]
 
+        # Save files
         purchase_path = os.path.join(
             UPLOAD_FOLDER,
-            purchase_file.filename
+            "purchase.csv"
         )
 
         gstr2b_path = os.path.join(
             UPLOAD_FOLDER,
-            gstr2b_file.filename
+            "gstr2b.csv"
         )
 
         purchase_file.save(purchase_path)
         gstr2b_file.save(gstr2b_path)
 
+        # Read CSV
         purchase_df = pd.read_csv(purchase_path)
         gstr2b_df = pd.read_csv(gstr2b_path)
 
+        # Clean columns
         purchase_df = clean_columns(purchase_df)
         gstr2b_df = clean_columns(gstr2b_df)
 
@@ -53,7 +64,8 @@ def index():
             "taxableamount": "taxable",
             "igstamount": "igst",
             "cgstamount": "cgst",
-            "sgstamount": "sgst"
+            "sgstamount": "sgst",
+            "netamount": "net"
         }, inplace=True)
 
         gstr2b_df.rename(columns={
@@ -61,9 +73,11 @@ def index():
             "taxableamount": "taxable",
             "igstamount": "igst",
             "cgstamount": "cgst",
-            "sgstamount": "sgst"
+            "sgstamount": "sgst",
+            "netamount": "net"
         }, inplace=True)
 
+        # Match columns
         cols = [
             "party",
             "taxable",
@@ -75,6 +89,7 @@ def index():
         purchase_df = purchase_df[cols]
         gstr2b_df = gstr2b_df[cols]
 
+        # Merge
         merged = purchase_df.merge(
             gstr2b_df,
             on=cols,
@@ -82,6 +97,7 @@ def index():
             indicator=True
         )
 
+        # Status
         merged["status"] = merged["_merge"].map({
             "both": "Matched",
             "left_only": "Only In Purchase",
@@ -90,16 +106,21 @@ def index():
 
         merged.drop(columns=["_merge"], inplace=True)
 
-        result_file = os.path.join(
+        # Save result
+        result_path = os.path.join(
             RESULT_FOLDER,
             "GST_Matching_Result.xlsx"
         )
 
-        merged.to_excel(result_file, index=False)
+        merged.to_excel(
+            result_path,
+            index=False
+        )
 
+        # HTML table
         table = merged.to_html(
             index=False,
-            classes="table table-bordered"
+            classes="table"
         )
 
         return render_template(
