@@ -7,15 +7,12 @@ app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
 RESULT_FOLDER = "results"
 
-# Folder create safely
-if not os.path.isdir(UPLOAD_FOLDER):
-    os.mkdir(UPLOAD_FOLDER)
-
-if not os.path.isdir(RESULT_FOLDER):
-    os.mkdir(RESULT_FOLDER)
+# Create folders safely
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULT_FOLDER, exist_ok=True)
 
 
-# Column clean function
+# Clean column names
 def clean_columns(df):
 
     df.columns = (
@@ -36,7 +33,7 @@ def index():
         purchase_file = request.files["purchase"]
         gstr2b_file = request.files["gstr2b"]
 
-        # Save files
+        # Save uploaded files
         purchase_path = os.path.join(
             UPLOAD_FOLDER,
             "purchase.csv"
@@ -64,8 +61,7 @@ def index():
             "taxableamount": "taxable",
             "igstamount": "igst",
             "cgstamount": "cgst",
-            "sgstamount": "sgst",
-            "netamount": "net"
+            "sgstamount": "sgst"
         }, inplace=True)
 
         gstr2b_df.rename(columns={
@@ -73,11 +69,10 @@ def index():
             "taxableamount": "taxable",
             "igstamount": "igst",
             "cgstamount": "cgst",
-            "sgstamount": "sgst",
-            "netamount": "net"
+            "sgstamount": "sgst"
         }, inplace=True)
 
-        # Match columns
+        # Required columns
         cols = [
             "party",
             "taxable",
@@ -89,7 +84,7 @@ def index():
         purchase_df = purchase_df[cols]
         gstr2b_df = gstr2b_df[cols]
 
-        # Merge
+        # Match data
         merged = purchase_df.merge(
             gstr2b_df,
             on=cols,
@@ -97,7 +92,7 @@ def index():
             indicator=True
         )
 
-        # Status
+        # Status column
         merged["status"] = merged["_merge"].map({
             "both": "Matched",
             "left_only": "Only In Purchase",
