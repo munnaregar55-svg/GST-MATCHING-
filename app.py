@@ -1,18 +1,23 @@
 from flask import Flask, render_template, request, send_file
 import pandas as pd
 import os
+import shutil
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 RESULT_FOLDER = "results"
 
-# Create folders safely
+# Fix uploads conflict
+if os.path.exists(UPLOAD_FOLDER):
+
+    if os.path.isfile(UPLOAD_FOLDER):
+        os.remove(UPLOAD_FOLDER)
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULT_FOLDER, exist_ok=True)
 
 
-# Clean column names
 def clean_columns(df):
 
     df.columns = (
@@ -33,7 +38,6 @@ def index():
         purchase_file = request.files["purchase"]
         gstr2b_file = request.files["gstr2b"]
 
-        # Save uploaded files
         purchase_path = os.path.join(
             UPLOAD_FOLDER,
             "purchase.csv"
@@ -47,15 +51,12 @@ def index():
         purchase_file.save(purchase_path)
         gstr2b_file.save(gstr2b_path)
 
-        # Read CSV
         purchase_df = pd.read_csv(purchase_path)
         gstr2b_df = pd.read_csv(gstr2b_path)
 
-        # Clean columns
         purchase_df = clean_columns(purchase_df)
         gstr2b_df = clean_columns(gstr2b_df)
 
-        # Rename columns
         purchase_df.rename(columns={
             "partyname": "party",
             "taxableamount": "taxable",
@@ -72,7 +73,6 @@ def index():
             "sgstamount": "sgst"
         }, inplace=True)
 
-        # Required columns
         cols = [
             "party",
             "taxable",
@@ -84,7 +84,6 @@ def index():
         purchase_df = purchase_df[cols]
         gstr2b_df = gstr2b_df[cols]
 
-        # Match data
         merged = purchase_df.merge(
             gstr2b_df,
             on=cols,
@@ -92,7 +91,6 @@ def index():
             indicator=True
         )
 
-        # Status column
         merged["status"] = merged["_merge"].map({
             "both": "Matched",
             "left_only": "Only In Purchase",
@@ -101,22 +99,14 @@ def index():
 
         merged.drop(columns=["_merge"], inplace=True)
 
-        # Save result
         result_path = os.path.join(
             RESULT_FOLDER,
             "GST_Matching_Result.xlsx"
         )
 
-        merged.to_excel(
-            result_path,
-            index=False
-        )
+        merged.to_excel(result_path, index=False)
 
-        # HTML table
-        table = merged.to_html(
-            index=False,
-            classes="table"
-        )
+        table = merged.to_html(index=False)
 
         return render_template(
             "result.html",
