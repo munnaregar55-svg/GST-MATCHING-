@@ -1,1 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+    <title>GST Result</title>
+
+    <style>
+
+        body{
+            font-family: Arial;
+            background:#f5f5f5;
+            padding:20px;
+        }
+
+        h2{
+            text-align:center;
+            color:green;
+        }
+
+        table{
+            border-collapse:collapse;
+            width:100%;
+            background:white;
+        }
+
+        table, th, td{
+            border:1px solid #999;
+        }
+
+        th{
+            background:green;
+            color:white;
+            padding:10px;
+        }
+
+        td{
+            padding:8px;
+            text-align:center;
+        }
+
+        .btn{
+            display:inline-block;
+            margin-top:20px;
+            padding:12px 20px;
+            background:blue;
+            color:white;
+            text-decoration:none;
+            border-radius:5px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h2>GST Matching Result</h2>
+
+    {{ table|safe }}
+
+    <br>
+
+    <a href="/download" class="btn">
+        Download Excel
+    </a>
+
+</body>
+</html>
 
